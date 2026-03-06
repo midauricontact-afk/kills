@@ -32,7 +32,8 @@ async function getTotalKills(puuid) {
 
   while (fetched < MATCHES_TO_SCAN) {
     const count = Math.min(batchSize, MATCHES_TO_SCAN - fetched);
-    const url = `https://${MASS_REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?start=${start}&count=${count}`;
+    const startOfYear = Math.floor(new Date('2026-01-01').getTime() / 1000);
+const url = `https://${MASS_REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?start=${start}&count=${count}&startTime=${startOfYear}`;
     const matchIds = await fetchJSON(url);
 
     if (matchIds.length === 0) break;
@@ -72,12 +73,12 @@ app.get("/kills", async (req, res) => {
     const now = Date.now();
     if (cache.kills !== null && now - cache.lastFetch < CACHE_DURATION) {
       const k = cache.kills;
-      return res.send(`midauri a découpé ${k} personne${k > 1 ? "s" : ""} sur ses ${MATCHES_TO_SCAN} dernières parties 🔪`);
+      return res.send(`midauri a découpé ${k} personne${k > 1 ? "s" : ""} depuis le début de l'année 2026 🔪`);
     }
     const puuid = await getPUUID();
     const kills = await getTotalKills(puuid);
     cache = { kills, lastFetch: now };
-    res.send(`midauri a découpé ${kills} personne${kills > 1 ? "s" : ""} sur ses ${MATCHES_TO_SCAN} dernières parties 🔪`);
+    res.send(`midauri a découpé ${kills} personne${kills > 1 ? "s" : ""} depuis le début de l'année 2026 🔪`);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Erreur lors de la récupération des kills 😵");
