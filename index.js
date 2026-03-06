@@ -77,7 +77,7 @@ app.get("/kills", async (req, res) => {
     const puuid = await getPUUID();
     const kills = await getTotalKills(puuid);
     cache = { kills, lastFetch: now };
-    res.send(`${SUMMONER_NAME} a découpé ${kills} personne${kills > 1 ? "s" : ""} sur ses ${MATCHES_TO_SCAN} dernières parties 🔪`);
+    res.send(`${midauri} a découpé ${kills} personne${kills > 1 ? "s" : ""} sur ses ${MATCHES_TO_SCAN} dernières parties 🔪`);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Erreur lors de la récupération des kills 😵");
