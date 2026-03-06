@@ -72,7 +72,7 @@ app.get("/kills", async (req, res) => {
     const now = Date.now();
     if (cache.kills !== null && now - cache.lastFetch < CACHE_DURATION) {
       const k = cache.kills;
-      return res.send(`${SUMMONER_NAME} a découpé ${k} personne${k > 1 ? "s" : ""} sur ses ${MATCHES_TO_SCAN} dernières parties 🔪`);
+      return res.send(`${midauri} a découpé ${k} personne${k > 1 ? "s" : ""} sur ses ${MATCHES_TO_SCAN} dernières parties 🔪`);
     }
     const puuid = await getPUUID();
     const kills = await getTotalKills(puuid);
