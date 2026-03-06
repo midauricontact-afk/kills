@@ -51,7 +51,7 @@ const url = `https://${MASS_REGION}.api.riotgames.com/lol/match/v5/matches/by-pu
         const participant = match.info.participants.find(p => p.puuid === puuid);
         if (participant) totalKills += participant.kills;
       }
-      await sleep(2000);
+      await sleep(3000);
     }
     fetched += matchIds.length;
 
