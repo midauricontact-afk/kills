@@ -2,15 +2,13 @@ const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-const RIOT_API_KEY    = process.env.RIOT_API_KEY    || "RGAPI-xxxxxxxx";
-const SUMMONER_NAME   = process.env.SUMMONER_NAME   || "midauri";
-const SUMMONER_TAG    = process.env.SUMMONER_TAG    || "EUW";     // tag sans le #
-const REGION          = process.env.REGION          || "euw1";    // euw1, na1, eun1...
-const MASS_REGION     = process.env.MASS_REGION     || "europe";  // europe, americas, asia
-const MATCHES_TO_SCAN = parseInt(process.env.MATCHES_TO_SCAN) || 200;
+const RIOT_API_KEY  = process.env.RIOT_API_KEY  || "RGAPI-xxxxxxxx";
+const SUMMONER_NAME = process.env.SUMMONER_NAME || "midauri";
+const SUMMONER_TAG  = process.env.SUMMONER_TAG  || "EUW";
+const REGION        = process.env.REGION        || "euw1";
+const MASS_REGION   = process.env.MASS_REGION   || "europe";
 
 const headers = { "X-Riot-Token": RIOT_API_KEY };
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchJSON(url) {
   const res = await fetch(url, { headers });
@@ -18,56 +16,51 @@ async function fetchJSON(url) {
   return res.json();
 }
 
+// Récupère le PUUID via Riot ID
 async function getPUUID() {
   const url = `https://${MASS_REGION}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(SUMMONER_NAME)}/${encodeURIComponent(SUMMONER_TAG)}`;
   const data = await fetchJSON(url);
   return data.puuid;
 }
 
-async function getTotalKills(puuid) {
-  let totalKills = 0;
-  let start = 0;
-  const batchSize = 100;
-  let fetched = 0;
-
-  while (fetched < MATCHES_TO_SCAN) {
-    const count = Math.min(batchSize, MATCHES_TO_SCAN - fetched);
-    const startOfYear = Math.floor(new Date('2026-01-01').getTime() / 1000);
-const url = `https://${MASS_REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?start=${start}&count=${count}&startTime=${startOfYear}`;
-    const matchIds = await fetchJSON(url);
-
-    if (matchIds.length === 0) break;
-
-    for (let i = 0; i < matchIds.length; i += 10) {
-      const batch = matchIds.slice(i, i + 10);
-      const results = await Promise.all(
-        batch.map(id =>
-          fetchJSON(`https://${MASS_REGION}.api.riotgames.com/lol/match/v5/matches/${id}`)
-            .catch(() => null)
-        )
-      );
-      for (const match of results) {
-        if (!match) continue;
-        const participant = match.info.participants.find(p => p.puuid === puuid);
-        if (participant) totalKills += participant.kills;
-      }
-      await sleep(3000);
-    }
-    fetched += matchIds.length;
-
-    fetched += matchIds.length;
-    start += matchIds.length;
-    if (matchIds.length < batchSize) break;
-  }
-
-  return totalKills;
+// Récupère le summonerId via PUUID
+async function getSummonerId(puuid) {
+  const url = `https://${REGION}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/${puuid}`;
+  const data = await fetchJSON(url);
+  return data.id;
 }
 
-// Cache 5 minutes pour ne pas spam l'API Riot
+// Récupère les stats totales ranked (kills cumulés toutes saisons)
+async function getRankedKills(summonerId) {
+  const url = `https://${REGION}.api.riotgames.com/lol/league/v4/entries/by-summoner/${summonerId}`;
+  const data = await fetchJSON(url);
+  return data; // retourne les infos ranked
+}
+
+// Récupère les kills via les dernières parties (limité mais rapide)
+async function getKillsFromMatches(puuid, count = 20) {
+  const startOfYear = Math.floor(new Date('2026-01-01').getTime() / 1000);
+  const url = `https://${MASS_REGION}.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?count=${count}&startTime=${startOfYear}`;
+  const matchIds = await fetchJSON(url);
+
+  let totalKills = 0;
+  for (const id of matchIds) {
+    try {
+      const match = await fetchJSON(`https://${MASS_REGION}.api.riotgames.com/lol/match/v5/matches/${id}`);
+      const participant = match.info.participants.find(p => p.puuid === puuid);
+      if (participant) totalKills += participant.kills;
+      await new Promise(r => setTimeout(r, 1500));
+    } catch (e) {
+      continue;
+    }
+  }
+  return { totalKills, matchesScanned: matchIds.length };
+}
+
+// Cache 5 minutes
 let cache = { kills: null, lastFetch: 0 };
 const CACHE_DURATION = 5 * 60 * 1000;
 
-// GET /kills → texte pour Wizebot
 app.get("/kills", async (req, res) => {
   try {
     const now = Date.now();
@@ -75,24 +68,15 @@ app.get("/kills", async (req, res) => {
       const k = cache.kills;
       return res.send(`midauri a découpé ${k} personne${k > 1 ? "s" : ""} depuis le début de l'année 2026 🔪`);
     }
+
     const puuid = await getPUUID();
-    const kills = await getTotalKills(puuid);
-    cache = { kills, lastFetch: now };
-    res.send(`midauri a découpé ${kills} personne${kills > 1 ? "s" : ""} depuis le début de l'année 2026 🔪`);
+    const { totalKills, matchesScanned } = await getKillsFromMatches(puuid, 100);
+    cache = { kills: totalKills, lastFetch: now };
+
+    res.send(`midauri a découpé ${totalKills} personne${totalKills > 1 ? "s" : ""} depuis le début de l'année 2026 🔪`);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Erreur lors de la récupération des kills 😵");
-  }
-});
-
-// GET /kills/raw → JSON brut
-app.get("/kills/raw", async (req, res) => {
-  try {
-    const puuid = await getPUUID();
-    const kills = await getTotalKills(puuid);
-    res.json({ summoner: SUMMONER_NAME, kills, matchesScanned: MATCHES_TO_SCAN });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
   }
 });
 
