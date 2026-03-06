@@ -10,6 +10,7 @@ const MASS_REGION     = process.env.MASS_REGION     || "europe";  // europe, ame
 const MATCHES_TO_SCAN = parseInt(process.env.MATCHES_TO_SCAN) || 200;
 
 const headers = { "X-Riot-Token": RIOT_API_KEY };
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchJSON(url) {
   const res = await fetch(url, { headers });
@@ -49,7 +50,9 @@ async function getTotalKills(puuid) {
         const participant = match.info.participants.find(p => p.puuid === puuid);
         if (participant) totalKills += participant.kills;
       }
+      await sleep(1200);
     }
+    fetched += matchIds.length;
 
     fetched += matchIds.length;
     start += matchIds.length;
