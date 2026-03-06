@@ -1,0 +1,15 @@
+{
+  "name": "kills-api-riot",
+  "version": "2.0.0",
+  "description": "API kills LoL via Riot API pour Twitch/Wizebot",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
